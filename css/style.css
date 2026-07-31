@@ -682,3 +682,85 @@ body{margin:0;padding:0;background:var(--bg)}
 .logout-btn{font-family:var(--mono);font-size:10px;padding:6px 14px;border:.5px solid rgba(248,113,113,.28);color:rgba(248,113,113,.55);background:transparent;cursor:pointer;letter-spacing:.07em;text-transform:uppercase;transition:all .2s}
 .logout-btn:hover{background:rgba(248,113,113,.07);color:#f87171}
 
+
+/* ══════════════════════════════════════════
+   INSTRUMENTS PANEL — Tidal Beat
+══════════════════════════════════════════ */
+.tb-inst-overlay{position:fixed;inset:0;background:rgba(5,5,15,.88);z-index:500;display:none;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.tb-inst-overlay.open{display:flex}
+.tb-inst-box{background:#12071f;border:.5px solid rgba(192,132,252,.28);border-top:2px solid #c084fc;width:96vw;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.tb-inst-hd{display:flex;align-items:center;gap:.6rem;padding:.65rem 1rem;border-bottom:.5px solid rgba(192,132,252,.14);flex-shrink:0}
+.tb-inst-title{font-family:var(--mono);font-size:13px;color:#e9d5ff;font-weight:700;flex:1}
+.tb-inst-tabs{display:flex;gap:0;border:.5px solid rgba(192,132,252,.18)}
+.tb-inst-tab{font-family:var(--mono);font-size:10px;padding:5px 14px;background:transparent;border:none;color:rgba(192,132,252,.45);cursor:pointer;letter-spacing:.07em;border-right:.5px solid rgba(192,132,252,.18);transition:all .15s}
+.tb-inst-tab:last-child{border-right:none}
+.tb-inst-tab.sel{background:rgba(192,132,252,.14);color:#e9d5ff}
+.tb-inst-close{font-family:var(--mono);font-size:10px;padding:4px 12px;border:.5px solid rgba(192,132,252,.2);background:transparent;color:rgba(192,132,252,.5);cursor:pointer;transition:all .18s}
+.tb-inst-close:hover{color:#e9d5ff;border-color:#c084fc}
+.tb-inst-body{flex:1;overflow:auto;padding:1rem;display:none}
+.tb-inst-body.active{display:block}
+
+/* Drum pad */
+.drum-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem;margin-bottom:1rem}
+.drum-pad{background:rgba(192,132,252,.08);border:.5px solid rgba(192,132,252,.22);padding:1.1rem .5rem;text-align:center;cursor:pointer;user-select:none;border-radius:3px;transition:all .12s;display:flex;flex-direction:column;align-items:center;gap:.35rem}
+.drum-pad:hover{background:rgba(192,132,252,.15);border-color:#c084fc}
+.drum-pad:active,.drum-pad.hit{background:#c084fc;border-color:#c084fc;transform:scale(.96)}
+.drum-pad i{font-size:24px;color:#c084fc}
+.drum-pad:active i,.drum-pad.hit i{color:#fff}
+.drum-pad-name{font-family:var(--mono);font-size:10px;color:rgba(200,200,220,.55);letter-spacing:.07em;text-transform:uppercase}
+.drum-pad-key{font-family:var(--mono);font-size:9px;color:rgba(192,132,252,.35);margin-top:1px}
+.drum-info{font-family:var(--mono);font-size:10px;color:rgba(192,132,252,.4);text-align:center;padding:.4rem;border:.5px solid rgba(192,132,252,.1);margin-top:.5rem}
+
+/* Piano */
+.piano-wrap{overflow-x:auto;padding-bottom:.5rem}
+.piano-keys{display:flex;position:relative;height:140px;width:max-content;margin-bottom:.75rem}
+.piano-wkey{width:36px;height:140px;background:#f0e6ff;border:.5px solid rgba(192,132,252,.4);border-radius:0 0 4px 4px;cursor:pointer;position:relative;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px;z-index:1;transition:background .1s}
+.piano-wkey:hover{background:#e9d5ff}
+.piano-wkey:active,.piano-wkey.hit{background:#c084fc}
+.piano-wkey-lbl{font-family:var(--mono);font-size:8px;color:rgba(100,0,180,.5);pointer-events:none}
+.piano-bkey{width:22px;height:85px;background:#2d0060;border:.5px solid rgba(192,132,252,.5);border-radius:0 0 3px 3px;position:absolute;top:0;z-index:2;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding-bottom:4px;transition:background .1s}
+.piano-bkey:hover{background:#4a0095}
+.piano-bkey:active,.piano-bkey.hit{background:#c084fc}
+.piano-bkey-lbl{font-family:var(--mono);font-size:7px;color:rgba(192,132,252,.55);pointer-events:none}
+.piano-octave-ctrl{display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;font-family:var(--mono);font-size:11px;color:rgba(192,132,252,.5)}
+.piano-oct-btn{width:24px;height:24px;border:.5px solid rgba(192,132,252,.22);background:transparent;color:rgba(192,132,252,.6);cursor:pointer;font-size:14px;transition:all .14s}
+.piano-oct-btn:hover{background:rgba(192,132,252,.1);color:#c084fc}
+.piano-note-display{font-family:var(--mono);font-size:12px;color:#c084fc;min-width:40px;text-align:center}
+.piano-recorded{margin-top:.6rem;font-family:var(--mono);font-size:10px;color:rgba(192,132,252,.4);padding:.4rem;border:.5px solid rgba(192,132,252,.1)}
+
+/* Recording in mix */
+.tb-recs{padding:.4rem .75rem;background:rgba(192,132,252,.04);border-top:.5px solid rgba(192,132,252,.1)}
+.tb-recitem{display:flex;align-items:center;gap:.5rem;padding:.35rem .5rem;font-family:var(--mono);font-size:11px;color:#c084fc;text-decoration:none;border:.5px solid rgba(192,132,252,.15);margin-bottom:.3rem;transition:all .15s;cursor:pointer}
+.tb-recitem:hover{background:rgba(192,132,252,.08);border-color:#c084fc}
+.tb-recitem .play-rec{background:none;border:none;color:#c084fc;cursor:pointer;font-size:13px;padding:0}
+.tb-recitem .add-rec{font-family:var(--mono);font-size:9px;padding:2px 8px;border:.5px solid rgba(192,132,252,.3);background:transparent;color:rgba(192,132,252,.6);cursor:pointer;margin-left:auto;transition:all .14s}
+.tb-recitem .add-rec:hover{background:rgba(192,132,252,.12);color:#c084fc}
+.tb-recitem .del-rec{background:none;border:none;color:rgba(248,113,113,.4);cursor:pointer;font-size:12px;padding:0;transition:color .12s}
+.tb-recitem .del-rec:hover{color:#f87171}
+
+/* ══════════════════════════════════════════
+   VISUAL STUDIO — EFFECTS PANEL & UNLIMITED TIMELINE
+══════════════════════════════════════════ */
+.vs-fx-panel{background:#111;border-top:.5px solid rgba(34,211,238,.12);flex-shrink:0;display:flex;flex-direction:column;max-height:180px}
+.vs-fx-hd{display:flex;align-items:center;padding:.3rem .75rem;gap:.5rem;border-bottom:.5px solid rgba(34,211,238,.09);flex-shrink:0}
+.vs-fx-title{font-family:var(--mono);font-size:9px;color:rgba(34,211,238,.3);letter-spacing:.13em;text-transform:uppercase}
+.vs-fx-add-btn{font-family:var(--mono);font-size:9px;padding:2px 8px;border:.5px solid rgba(34,211,238,.2);background:transparent;color:rgba(34,211,238,.45);cursor:pointer;margin-left:auto;transition:all .14s}
+.vs-fx-add-btn:hover{background:rgba(34,211,238,.07);color:#22d3ee}
+.vs-fx-list-wrap{overflow-x:auto;display:flex;gap:.4rem;padding:.4rem .75rem;flex:1;align-items:flex-start;flex-wrap:nowrap}
+.vs-fx-chip{background:rgba(34,211,238,.07);border:.5px solid rgba(34,211,238,.18);padding:.35rem .65rem;display:flex;align-items:center;gap:.4rem;white-space:nowrap;cursor:pointer;transition:all .14s;flex-shrink:0}
+.vs-fx-chip.on{background:rgba(34,211,238,.16);border-color:#22d3ee}
+.vs-fx-chip-name{font-family:var(--mono);font-size:10px;color:rgba(34,211,238,.7)}
+.vs-fx-chip.on .vs-fx-chip-name{color:#22d3ee}
+.vs-fx-chip-val{font-family:var(--mono);font-size:9px;color:rgba(34,211,238,.4)}
+.vs-fx-chip-rm{font-size:11px;color:rgba(200,200,220,.2);cursor:pointer;transition:color .12s;background:none;border:none;padding:0}
+.vs-fx-chip-rm:hover{color:#f87171}
+/* FX picker popup */
+.vs-fx-picker{position:absolute;bottom:calc(180px + 36px);left:0;right:0;background:#111;border:.5px solid rgba(34,211,238,.2);border-bottom:none;z-index:50;display:none;flex-wrap:wrap;gap:.5rem;padding:.65rem .75rem}
+.vs-fx-picker.open{display:flex}
+.vs-fx-pick-item{font-family:var(--mono);font-size:10px;padding:.35rem .65rem;border:.5px solid rgba(34,211,238,.16);background:transparent;color:rgba(34,211,238,.55);cursor:pointer;transition:all .14s}
+.vs-fx-pick-item:hover{background:rgba(34,211,238,.1);color:#22d3ee;border-color:#22d3ee}
+/* Unlimited timeline */
+.vs-tlrows{overflow-x:auto;overflow-y:auto}
+.vs-tl-inner{min-width:100%;width:max-content}
+.vs-extend-btn{font-family:var(--mono);font-size:9px;padding:3px 10px;border:.5px dashed rgba(34,211,238,.2);background:transparent;color:rgba(34,211,238,.35);cursor:pointer;margin:.3rem .75rem;transition:all .14s;display:inline-block}
+.vs-extend-btn:hover{border-color:#22d3ee;color:#22d3ee}
