@@ -203,6 +203,7 @@
       <button class="sbtn" style="border-color:rgba(192,132,252,.18);color:rgba(192,132,252,.5)" onclick="document.getElementById('tb-audioInput').click()">Import</button>
       <button class="sbtn" style="border-color:rgba(192,132,252,.18);color:rgba(192,132,252,.5)" onclick="touchProj('tb');showToast('Project saved')">Save</button>
       <button class="sbtn" id="tb-exportbtn" style="background:rgba(192,132,252,.12);border-color:#c084fc;color:#e9d5ff" onclick="tbExport()">Export</button>
+      <button class="sbtn" style="border-color:rgba(192,132,252,.28);color:#c084fc" onclick="openInstruments()"><i class="ti ti-piano" aria-hidden="true"></i> Instruments</button>
       <button class="sbtn" style="border-color:rgba(192,132,252,.3);color:#c084fc" onclick="tbAiOpen(this)">AI+</button>
       <button class="enlarge-btn" onclick="enlargeTB()" title="Enlarge"><i class="ti ti-maximize" aria-hidden="true"></i> Enlarge</button>
       <button class="back-btn" onclick="go('s-home')">← Home</button>
@@ -423,7 +424,7 @@
         <label>Start <input type="number" value="0" disabled></label>
         <label>End <input type="number" id="vs-endinput" value="12" onchange="vsSetDuration(this.value)"></label>
         <span id="vs-fc">Frame 0 / 288</span>
-        <span style="margin-left:auto">Mem: <span id="vs-mem">412.3 MB</span></span>
+        <button class="vs-extend-btn" onclick="vsExtendTimeline()"><i class="ti ti-plus" aria-hidden="true"></i> Extend (+30s)</button><span style="margin-left:auto">Mem: <span id="vs-mem">412.3 MB</span></span>
         <span style="display:flex;flex-direction:column;gap:1px;font-size:8px;color:rgba(34,211,238,.22)">
           <span>Duration <b style="color:#22d3ee" id="vs-durlbl">12s</b></span>
         </span>
@@ -431,6 +432,17 @@
         <span style="font-size:8px;color:rgba(34,211,238,.22)">Layers <b style="color:#22d3ee" id="vs-lc">4</b></span>
       </div>
     </div>
+
+      <!-- VS EFFECTS PANEL -->
+      <div class="vs-fx-panel" id="vs-fx-panel" style="position:relative">
+        <div class="vs-fx-picker" id="vs-fx-picker"></div>
+        <div class="vs-fx-hd">
+          <span class="vs-fx-title">Effects Chain</span>
+          <span style="font-family:var(--mono);font-size:9px;color:rgba(34,211,238,.3);margin-left:.5rem" id="vs-fx-layer-lbl">— no layer selected —</span>
+          <button class="vs-fx-add-btn" onclick="vsFxPickerOpen()"><i class="ti ti-plus" aria-hidden="true"></i> Add Effect</button>
+        </div>
+        <div class="vs-fx-list-wrap" id="vs-fx-list"></div>
+      </div>
   </div>
 </div>
 
@@ -660,6 +672,49 @@
     <div class="prem-btns">
       <button class="prem-btn-p" onclick="closePremGate();go('s-payment')">Upgrade to Prototype+ ↗</button>
       <button class="prem-btn-s" onclick="closePremGate()">Not now — go back</button>
+    </div>
+  </div>
+</div>
+
+<!-- INSTRUMENTS OVERLAY -->
+<div class="tb-inst-overlay" id="tb-inst-overlay">
+  <div class="tb-inst-box">
+    <div class="tb-inst-hd">
+      <span class="tb-inst-title"><i class="ti ti-piano" aria-hidden="true"></i> Instruments</span>
+      <div class="tb-inst-tabs">
+        <button class="tb-inst-tab sel" onclick="instTab(this,'drums')">Drum Pads</button>
+        <button class="tb-inst-tab" onclick="instTab(this,'piano')">Piano</button>
+        <button class="tb-inst-tab" onclick="instTab(this,'recs')">My Recordings</button>
+      </div>
+      <button class="tb-inst-close" onclick="closeInstruments()">✕ Close</button>
+    </div>
+    <!-- DRUM PADS -->
+    <div class="tb-inst-body active" id="inst-drums">
+      <div class="drum-grid" id="drum-grid"></div>
+      <div class="drum-info">Press a pad or use keyboard shortcuts (Q W E R A S D F Z X C V) — your hits are recorded live into the beat</div>
+    </div>
+    <!-- PIANO -->
+    <div class="tb-inst-body" id="inst-piano">
+      <div class="piano-octave-ctrl">
+        <span>Octave</span>
+        <button class="piano-oct-btn" onclick="pianoOctDown()">−</button>
+        <span class="piano-note-display" id="piano-oct-lbl">4</span>
+        <button class="piano-oct-btn" onclick="pianoOctUp()">+</button>
+        <span style="margin-left:1rem">Last note: <span id="piano-last-note" style="color:#c084fc">—</span></span>
+        <button class="tb-inst-tab" style="margin-left:auto;padding:4px 12px" onclick="pianoStartRecord()" id="piano-rec-btn">⏺ Record to track</button>
+      </div>
+      <div class="piano-wrap">
+        <div class="piano-keys" id="piano-keys"></div>
+      </div>
+      <div class="piano-recorded" id="piano-recorded-info">Play notes above — they'll be added as a melody track when you click Record.</div>
+    </div>
+    <!-- RECORDINGS -->
+    <div class="tb-inst-body" id="inst-recs">
+      <div style="font-family:var(--mono);font-size:11px;color:rgba(192,132,252,.45);margin-bottom:.65rem">Your mic recordings. Click ▶ to preview, then <b>Add to Beat</b> to mix it into your project.</div>
+      <div id="inst-recs-list"></div>
+      <div style="margin-top:.5rem">
+        <button class="tb-inst-tab sel" style="padding:6px 16px" onclick="tbToggleRec()"><i class="ti ti-microphone" aria-hidden="true"></i> New Recording</button>
+      </div>
     </div>
   </div>
 </div>

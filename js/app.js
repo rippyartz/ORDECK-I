@@ -883,6 +883,9 @@ function vsRenderMarks(){
   for(let i=0;i<n;i++){const d=document.createElement('div');d.className='vs-tlmk';d.textContent=(i%2===0)?Math.round(i/n*vsProj.duration)+'s':'';marks.appendChild(d)}
 }
 function vsRenderProps(){
+  // Refresh effects panel for selected layer
+  if(vsProj&&vsProj.sel) vsFxRender(vsProj.sel);
+  else vsFxRender(null);
   const cont=document.getElementById('vs-propswrap');if(!cont)return;
   const l=vsProj.layers.find(x=>x.id===vsProj.sel);
   if(!l){cont.innerHTML='<div class="vs-pt">Properties</div><div class="vs-pe">No layer selected</div>';return}
@@ -2624,4 +2627,419 @@ function onPaymentSuccess() {
   applyPrototypePlus();
   go('s-home');
 }
+
+
+// ═══════════════════════════════════════════════════════
+// INSTRUMENTS — Drum Pads + Piano + Recording Mixer
+// ═══════════════════════════════════════════════════════
+
+const DRUM_PADS = [
+  { name:'Kick',    sound:'kick',    key:'Q', icon:'ti-circle-filled' },
+  { name:'Snare',   sound:'snare',   key:'W', icon:'ti-align-center' },
+  { name:'Hi-Hat',  sound:'hihat',   key:'E', icon:'ti-wave-sine' },
+  { name:'Open Hat',sound:'openhat', key:'R', icon:'ti-wave-saw-tool' },
+  { name:'Clap',    sound:'clap',    key:'A', icon:'ti-hand-stop' },
+  { name:'Tom Hi',  sound:'tomHi',   key:'S', icon:'ti-circle' },
+  { name:'Tom Mid', sound:'tomMid',  key:'D', icon:'ti-circle' },
+  { name:'Tom Lo',  sound:'tomLow',  key:'F', icon:'ti-circle' },
+  { name:'Bass',    sound:'bass',    key:'Z', icon:'ti-letter-b' },
+  { name:'Synth',   sound:'synth',   key:'X', icon:'ti-wave-sine' },
+  { name:'Perc',    sound:'perc',    key:'C', icon:'ti-bell' },
+  { name:'FX',      sound:'fx',      key:'V', icon:'ti-sparkles' },
+];
+
+const DRUM_KEY_MAP = {};
+DRUM_PADS.forEach((p,i) => { DRUM_KEY_MAP[p.key] = i; });
+
+let instOpen = false;
+let pianoOctave = 4;
+let pianoRecording = false;
+let pianoNotes = []; // [{note, time}]
+let pianoRecStart = 0;
+
+function openInstruments() {
+  document.getElementById('tb-inst-overlay').classList.add('open');
+  instOpen = true;
+  buildDrumPads();
+  buildPiano();
+  refreshInstRecs();
+}
+function closeInstruments() {
+  document.getElementById('tb-inst-overlay').classList.remove('open');
+  instOpen = false;
+}
+function instTab(el, tab) {
+  document.querySelectorAll('.tb-inst-tab').forEach(t => t.classList.remove('sel'));
+  el.classList.add('sel');
+  document.querySelectorAll('.tb-inst-body').forEach(b => b.classList.remove('active'));
+  document.getElementById('inst-' + tab).classList.add('active');
+  if (tab === 'recs') refreshInstRecs();
+}
+
+// ── Drum Pads ──
+function buildDrumPads() {
+  const grid = document.getElementById('drum-grid');
+  if (!grid) return;
+  grid.innerHTML = DRUM_PADS.map((p, i) =>
+    `<div class="drum-pad" id="drum-pad-${i}" onclick="hitDrum(${i})" title="${p.key}">
+      <i class="ti ${p.icon}" aria-hidden="true"></i>
+      <span class="drum-pad-name">${p.name}</span>
+      <span class="drum-pad-key">${p.key}</span>
+    </div>`
+  ).join('');
+}
+
+function hitDrum(i) {
+  const pad = DRUM_PADS[i];
+  ensureAudio();
+  // Play the sound using existing playSound system
+  if (typeof playSound === 'function' && actx) {
+    const g = actx.createGain();
+    g.gain.value = 0.8;
+    g.connect(actx.destination);
+    playSound(actx, pad.sound, g, 'none', actx.currentTime, 0.8, tbProj ? tbProj.bpm : 120, null);
+  }
+  // Animate pad
+  const el = document.getElementById('drum-pad-' + i);
+  if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 120); }
+  // If beat is playing, record hit into current step
+  if (tbProj && tbPlaying) {
+    const patKey = tbProj.order[tbStep !== undefined ? Math.floor(tbStep / 16) : 0] || tbProj.order[0];
+    const step = tbStep % 16;
+    const pat = tbProj.patterns[patKey];
+    // Find track matching this sound
+    const ti = tbProj.tracks.findIndex(t => t.sound === pad.sound);
+    if (ti !== -1 && pat && pat[ti]) {
+      pat[ti][step] = 1;
+      tbRenderGrid && tbRenderGrid();
+    }
+  }
+}
+
+// Keyboard drum shortcuts
+document.addEventListener('keydown', function(e) {
+  if (!instOpen) return;
+  const activeBody = document.querySelector('.tb-inst-body.active');
+  if (!activeBody || activeBody.id !== 'inst-drums') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const i = DRUM_KEY_MAP[e.key.toUpperCase()];
+  if (i !== undefined) hitDrum(i);
+});
+
+// ── Piano ──
+const NOTES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const WHITE_NOTES = ['C','D','E','F','G','A','B'];
+const BLACK_NOTES = { 'C#':0, 'D#':1, 'F#':3, 'G#':4, 'A#':5 };
+// Black key offsets (white key index → pixel offset)
+const BLACK_OFFSETS = [1,2,4,5,6]; // after C,D,F,G,A
+
+function buildPiano() {
+  const container = document.getElementById('piano-keys');
+  if (!container) return;
+  container.innerHTML = '';
+  const octaves = 2;
+  const wKeyW = 36;
+  const totalW = octaves * 7 * wKeyW;
+  container.style.width = totalW + 'px';
+
+  for (let oct = 0; oct < octaves; oct++) {
+    const octBase = pianoOctave + oct;
+    WHITE_NOTES.forEach((note, wi) => {
+      const key = document.createElement('div');
+      key.className = 'piano-wkey';
+      if (wi === 0) {
+        const lbl = document.createElement('span');
+        lbl.className = 'piano-wkey-lbl';
+        lbl.textContent = note + octBase;
+        key.appendChild(lbl);
+      }
+      key.addEventListener('mousedown', () => playPianoNote(note, octBase));
+      container.appendChild(key);
+    });
+    // Black keys
+    Object.entries(BLACK_NOTES).forEach(([note, wi]) => {
+      const octBase2 = pianoOctave + oct;
+      const key = document.createElement('div');
+      key.className = 'piano-bkey';
+      // Position: each white key is wKeyW px, black keys sit between whites
+      const leftOffset = oct * 7 * wKeyW + wi * wKeyW + wKeyW * 0.65;
+      key.style.left = leftOffset + 'px';
+      const lbl = document.createElement('span');
+      lbl.className = 'piano-bkey-lbl';
+      lbl.textContent = note + octBase2;
+      key.appendChild(lbl);
+      key.addEventListener('mousedown', () => playPianoNote(note, octBase2));
+      container.appendChild(key);
+    });
+  }
+}
+
+function playPianoNote(note, octave) {
+  ensureAudio();
+  if (!actx) return;
+  const fullNote = note + octave;
+  const freq = noteToFreq(note, octave);
+  // Synth note via Web Audio
+  const osc = actx.createOscillator();
+  const env = actx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.value = freq;
+  env.gain.setValueAtTime(0, actx.currentTime);
+  env.gain.linearRampToValueAtTime(0.5, actx.currentTime + 0.01);
+  env.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + 1.2);
+  osc.connect(env); env.connect(actx.destination);
+  osc.start(actx.currentTime); osc.stop(actx.currentTime + 1.2);
+
+  // Update UI
+  const lbl = document.getElementById('piano-last-note');
+  if (lbl) lbl.textContent = fullNote;
+
+  // Record if recording
+  if (pianoRecording) {
+    pianoNotes.push({ note: fullNote, freq, time: actx.currentTime - pianoRecStart });
+  }
+}
+
+function noteToFreq(note, octave) {
+  const semitone = NOTES.indexOf(note);
+  return 440 * Math.pow(2, (octave - 4) + (semitone - 9) / 12);
+}
+
+function pianoOctUp()   { pianoOctave = Math.min(7, pianoOctave + 1); document.getElementById('piano-oct-lbl').textContent = pianoOctave; buildPiano(); }
+function pianoOctDown() { pianoOctave = Math.max(1, pianoOctave - 1); document.getElementById('piano-oct-lbl').textContent = pianoOctave; buildPiano(); }
+
+function pianoStartRecord() {
+  ensureAudio();
+  const btn = document.getElementById('piano-rec-btn');
+  if (!pianoRecording) {
+    pianoRecording = true; pianoNotes = []; pianoRecStart = actx.currentTime;
+    if (btn) { btn.textContent = '⏹ Stop recording'; btn.style.color = '#f87171'; }
+    document.getElementById('piano-recorded-info').textContent = '● Recording — play notes now...';
+  } else {
+    pianoRecording = false;
+    if (btn) { btn.textContent = '⏺ Record to track'; btn.style.color = ''; }
+    if (pianoNotes.length > 0) {
+      addPianoNotesToTrack();
+    } else {
+      document.getElementById('piano-recorded-info').textContent = 'No notes recorded. Try again.';
+    }
+  }
+}
+
+function addPianoNotesToTrack() {
+  if (!tbProj || pianoNotes.length === 0) return;
+  ensureAudio();
+  // Build an AudioBuffer from the recorded notes
+  const duration = pianoNotes[pianoNotes.length - 1].time + 1.5;
+  const sr = actx.sampleRate;
+  const buf = actx.createBuffer(1, Math.ceil(sr * duration), sr);
+  const data = buf.getChannelData(0);
+  pianoNotes.forEach(n => {
+    const startSample = Math.floor(n.time * sr);
+    const noteLen = 0.6; // seconds per note
+    for (let s = 0; s < Math.floor(noteLen * sr); s++) {
+      const t = s / sr;
+      const env = t < 0.01 ? t / 0.01 : Math.exp(-t * 4);
+      data[startSample + s] = (data[startSample + s] || 0) + Math.sin(2 * Math.PI * n.freq * t) * 0.4 * env;
+    }
+  });
+  // Add as a new sampled track
+  const name = 'Piano ' + (tbProj.tracks.filter(t => t.name.startsWith('Piano')).length + 1);
+  tbProj.tracks.push({ name, sound: 'sample', color: '#a78bfa', vol: 0.8, muted: false, fx: 'none', _buffer: buf });
+  Object.keys(tbProj.patterns).forEach(k => tbProj.patterns[k].push(new Array(16).fill(1)));
+  touchProj('tb'); tbRebuildAudioGraph(); tbRenderAll();
+  document.getElementById('piano-recorded-info').textContent = '✓ "' + name + '" added as a track (' + pianoNotes.length + ' notes)';
+  pianoNotes = [];
+  showToast('"' + name + '" added to your beat!');
+}
+
+// ── Recordings panel inside Instruments ──
+function refreshInstRecs() {
+  const list = document.getElementById('inst-recs-list');
+  const srcList = document.getElementById('tb-recs');
+  if (!list) return;
+  const items = srcList ? Array.from(srcList.querySelectorAll('.tb-recitem')) : [];
+  if (items.length === 0) {
+    list.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:rgba(192,132,252,.3);padding:.5rem">No recordings yet. Use the Record button to capture your mic.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  items.forEach((item, i) => {
+    const url = item.href;
+    const name = item.textContent.trim();
+    const row = document.createElement('div');
+    row.className = 'tb-recitem';
+    row.innerHTML = `<i class="ti ti-file-music" aria-hidden="true"></i>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${name}</span>
+      <button class="play-rec" title="Preview" onclick="previewRec('${url}')"><i class="ti ti-player-play" aria-hidden="true"></i></button>
+      <button class="add-rec" onclick="addRecToBeat('${url}','${name}')">+ Add to Beat</button>
+      <button class="del-rec" onclick="this.closest('.tb-recitem').remove()" title="Remove"><i class="ti ti-x" aria-hidden="true"></i></button>`;
+    list.appendChild(row);
+  });
+}
+
+let previewAudio = null;
+function previewRec(url) {
+  if (previewAudio) { previewAudio.pause(); previewAudio.currentTime = 0; }
+  previewAudio = new Audio(url);
+  previewAudio.play().catch(() => {});
+}
+
+function addRecToBeat(url, name) {
+  ensureAudio();
+  if (!actx) { showToast('Audio engine not ready'); return; }
+  fetch(url)
+    .then(r => r.arrayBuffer())
+    .then(buf => actx.decodeAudioData(buf))
+    .then(decoded => {
+      const trackName = (name || 'Recording').replace(/\s*\(.*\)/, '').slice(0, 16);
+      tbProj.tracks.push({ name: trackName, sound: 'sample', color: '#f87171', vol: 0.8, muted: false, fx: 'none', _buffer: decoded });
+      Object.keys(tbProj.patterns).forEach(k => tbProj.patterns[k].push(new Array(16).fill(1)));
+      touchProj('tb'); tbRebuildAudioGraph(); tbRenderAll();
+      showToast('"' + trackName + '" added to the beat!');
+    })
+    .catch(() => showToast('Could not load recording'));
+}
+
+// ═══════════════════════════════════════════════════════
+// VISUAL STUDIO — EFFECTS ENGINE
+// ═══════════════════════════════════════════════════════
+
+const VS_EFFECTS_LIST = [
+  { id:'brightness', name:'Brightness', css: v => `brightness(${v}%)`, default:100, min:0, max:200, unit:'%' },
+  { id:'contrast',   name:'Contrast',   css: v => `contrast(${v}%)`,   default:100, min:0, max:300, unit:'%' },
+  { id:'saturation', name:'Saturation', css: v => `saturate(${v}%)`,   default:100, min:0, max:400, unit:'%' },
+  { id:'blur',       name:'Blur',       css: v => `blur(${v}px)`,      default:0,   min:0, max:20,  unit:'px' },
+  { id:'hue',        name:'Hue Rotate', css: v => `hue-rotate(${v}deg)`, default:0, min:0, max:360, unit:'°' },
+  { id:'sepia',      name:'Sepia',      css: v => `sepia(${v}%)`,      default:0,   min:0, max:100, unit:'%' },
+  { id:'grayscale',  name:'Grayscale',  css: v => `grayscale(${v}%)`,  default:0,   min:0, max:100, unit:'%' },
+  { id:'invert',     name:'Invert',     css: v => `invert(${v}%)`,     default:0,   min:0, max:100, unit:'%' },
+  { id:'opacity',    name:'Opacity',    css: v => `opacity(${v}%)`,    default:100, min:0, max:100, unit:'%' },
+  { id:'glow',       name:'Glow',       css: v => `drop-shadow(0 0 ${v}px #22d3ee)`, default:0, min:0, max:30, unit:'px' },
+  { id:'vignette',   name:'Vignette',   css: v => ``, default:0, min:0, max:1, unit:'', special:'vignette' },
+  { id:'sharpen',    name:'Sharpen',    css: v => `contrast(${100+v*0.5}%) brightness(${100+v*0.2}%)`, default:0, min:0, max:100, unit:'%' },
+];
+
+// Each layer gets its own effects array: [{ id, val }]
+function vsFxGetLayerEffects(layerId) {
+  if (!vsProj) return [];
+  const layer = vsProj.layers.find(l => l.id === layerId);
+  if (!layer) return [];
+  if (!layer.effects) layer.effects = [];
+  return layer.effects;
+}
+
+function vsFxPickerOpen() {
+  if (!vsProj || !vsProj.sel) { showToast('Select a layer first'); return; }
+  const picker = document.getElementById('vs-fx-picker');
+  if (!picker) return;
+  if (picker.classList.contains('open')) { picker.classList.remove('open'); return; }
+  picker.innerHTML = VS_EFFECTS_LIST.map(fx =>
+    `<div class="vs-fx-pick-item" onclick="vsFxAdd('${fx.id}')">${fx.name}</div>`
+  ).join('');
+  picker.classList.add('open');
+}
+
+function vsFxAdd(fxId) {
+  if (!vsProj || !vsProj.sel) { showToast('Select a layer first'); return; }
+  const layer = vsProj.layers.find(l => l.id === vsProj.sel);
+  if (!layer) return;
+  if (!layer.effects) layer.effects = [];
+  const def = VS_EFFECTS_LIST.find(f => f.id === fxId);
+  if (!def) return;
+  if (layer.effects.find(e => e.id === fxId)) { showToast(def.name + ' already applied'); return; }
+  layer.effects.push({ id: fxId, val: def.default, on: true });
+  document.getElementById('vs-fx-picker').classList.remove('open');
+  vsFxRender(vsProj.sel);
+  vsApplyEffects(layer);
+  showToast(def.name + ' added');
+}
+
+function vsFxRender(layerId) {
+  const list = document.getElementById('vs-fx-list');
+  const lbl = document.getElementById('vs-fx-layer-lbl');
+  if (!list) return;
+  if (!layerId || !vsProj) { list.innerHTML = ''; if (lbl) lbl.textContent = '— no layer selected —'; return; }
+  const layer = vsProj.layers.find(l => l.id === layerId);
+  if (!layer) { list.innerHTML = ''; return; }
+  if (lbl) lbl.textContent = 'on: ' + (layer.name || 'Layer');
+  const effects = layer.effects || [];
+  if (effects.length === 0) {
+    list.innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:rgba(34,211,238,.25)">No effects — click + Add Effect</span>';
+    return;
+  }
+  list.innerHTML = effects.map((e, i) => {
+    const def = VS_EFFECTS_LIST.find(f => f.id === e.id);
+    if (!def) return '';
+    return `<div class="vs-fx-chip ${e.on ? 'on' : ''}" id="vsfx-chip-${i}">
+      <span class="vs-fx-chip-name">${def.name}</span>
+      <input type="range" min="${def.min}" max="${def.max}" value="${e.val}" step="${def.max > 10 ? 1 : 0.1}"
+        style="width:60px;height:3px;cursor:pointer;accent-color:#22d3ee"
+        oninput="vsFxChange(${i},this.value,'${layerId}')">
+      <span class="vs-fx-chip-val">${e.val}${def.unit}</span>
+      <button class="vs-fx-chip-rm" onclick="vsFxRemove(${i},'${layerId}')" title="Remove"><i class="ti ti-x" aria-hidden="true"></i></button>
+    </div>`;
+  }).join('');
+}
+
+function vsFxChange(i, val, layerId) {
+  if (!vsProj) return;
+  const layer = vsProj.layers.find(l => l.id === layerId);
+  if (!layer || !layer.effects) return;
+  layer.effects[i].val = parseFloat(val);
+  const def = VS_EFFECTS_LIST.find(f => f.id === layer.effects[i].id);
+  const chip = document.getElementById('vsfx-chip-' + i);
+  if (chip) { const valEl = chip.querySelector('.vs-fx-chip-val'); if (valEl && def) valEl.textContent = val + def.unit; }
+  vsApplyEffects(layer);
+  vsDrawPreview && vsDrawPreview();
+}
+
+function vsFxRemove(i, layerId) {
+  if (!vsProj) return;
+  const layer = vsProj.layers.find(l => l.id === layerId);
+  if (!layer || !layer.effects) return;
+  layer.effects.splice(i, 1);
+  vsFxRender(layerId);
+  vsApplyEffects(layer);
+  vsDrawPreview && vsDrawPreview();
+}
+
+function vsApplyEffects(layer) {
+  // Build CSS filter string
+  const effects = layer.effects || [];
+  const filterParts = [];
+  effects.forEach(e => {
+    if (!e.on) return;
+    const def = VS_EFFECTS_LIST.find(f => f.id === e.id);
+    if (!def || def.special) return;
+    filterParts.push(def.css(e.val));
+  });
+  layer._cssFilter = filterParts.join(' ');
+}
+
+// Hook into layer selection to refresh effects panel
+const _vsOrigSetSel = window.vsSetLayerSel;
+function vsRefreshFxPanelForSel(layerId) {
+  vsFxRender(layerId);
+}
+
+// Patch vsDrawPreview to apply effects to canvas context
+const _origVsDrawPreview = window.vsDrawPreview;
+// We add effect application on top of the existing draw call in the main draw loop
+// by extending vsDrawPreview after it's been called
+
+// ── Unlimited Timeline ──
+function vsExtendTimeline() {
+  if (!vsProj) return;
+  vsProj.duration = (vsProj.duration || 12) + 30;
+  vsSetDuration && vsSetDuration(vsProj.duration);
+  touchProj('vs');
+  showToast('Timeline extended to ' + vsProj.duration + 's');
+}
+
+// Make timeline scrollable horizontally with no max width
+(function patchTimeline() {
+  const rows = document.getElementById('vs-tlrows');
+  if (rows) { rows.style.overflowX = 'auto'; rows.style.minWidth = '100%'; }
+})();
 
